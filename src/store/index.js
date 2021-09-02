@@ -1,107 +1,175 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
+import Localbase from 'localbase'
+let db = new Localbase('db')
 
 Vue.use(Vuex)
 
 const store = new Vuex.Store({
   state: {
     tasks: [],
-    newTaskTitle: '',
     dialogEdit: false,
-    editTaskTitle: '',
     editItemId: null,
+    editTaskTitle: null,
     dialogDelete: false,
-    deleteTaskTitle: '',
     deleteItemId: null,
-    snackbar: false,
-    snackbarText: '',
-    taskOperations: [
-      {
-        "action": "edit",
-        "name": "Edit Task",
-      },
-      {
-        "action": "sort",
-        "name": "Sort",
-      },
-      {
-        "action": "setDate",
-        "name": "Set Date",
-      },
-      {
-        "action": "delete",
-        "name": "Delete",
-      }
-    ],
+    snackbar: {
+      show: false,
+      text: '',
+    }
   },
+
   mutations: {
-    addTask(state) {
-      let newTask = {
-        id: Date.now(),
-        title: state.newTaskTitle,
-        done: false,
-      }
+    setTasks(state, tasks) {
+      state.tasks = tasks
+    },
+
+    addTask(state, newTask) {
       state.tasks.push(newTask)
       state.newTaskTitle = ''
-      state.snackbarText = 'Task created successfully.'
-      state.snackbar = true
     },
+
     doneTask(state, id) {
       let task = state.tasks.filter(task => task.id === id)[0]
       task.done = !task.done
     },
+
+    confirmDeleteTask(state, id) {
+      state.dialogDelete = true
+      state.deleteItemId = id
+    },
+
     deleteTask(state, id) {
       state.tasks = state.tasks.filter(task => task.id !== id)
-      state.snackbarText = 'Task deleted successfully.'
-      state.snackbar = true
     },
-    confirmDeleteTask(state, payload) {
-      state.dialogDelete = true
-      state.deleteItemId = payload.id
-      state.deleteTaskTitle = state.tasks.filter(task => task.id === payload.id)[0].title
-    },
-    editTask(state, id) {
+
+    editTask(state, payload) {
+      state.editItemId = payload.id
+      state.editTaskTitle = payload.title
       state.dialogEdit = true
-      state.editItemId = id
-      state.editTaskTitle = state.tasks.filter(task => task.id === id)[0].title
     },
-    updateTask(state, id) {
-      let task = state.tasks.filter(task => task.id === id)[0]
-      task.title = state.editTaskTitle
-      state.dialogEdit = false
-      state.snackbarText = 'Task updated successfully.'
-      state.snackbar = true
+
+    updateTask(state, payload) {
+      let task = state.tasks.filter(task => task.id === payload.id)[0]
+      task.title = payload.title
     },
-    sortTasks(state) {
-      state.snackbarText = 'Tasks sorted successfully.'
-      state.snackbar = true
-    },
-    setDate(state, id) {
-      state.snackbarText = 'Date changed successfully.'
-      state.snackbar = true
-    },
+
     closeDialog(state) {
       state.dialogEdit = false
       state.dialogDelete = false
     },
-    closeSnackbar(state) {
-      state.snackbar = false
+    
+    showSnackbar(state, text) {
+      state.snackbar.show = true
+      state.snackbar.text = text
     },
-    // reaction(state, payload) {
-    //   switch(payload.action) {
-    //     case "edit": this.editTask(payload.id); break;
-    //     case "sort": this.sortTasks(payload.id); break;
-    //     case "setDate": this.setDate(payload.id); break;
-    //     case "delete": this.confirmDeleteTask(payload.id); break;
-    //   }
-    // },
-    // pushSnackbar(state, message) {
-    //   this.snackbarText = message
-    //   this.snackbar = true
-    // }
+
+    closeSnackbar(state) {
+      state.snackbar.show = false
+    },
   },
+
   actions: {
+    setTasks({ commit }, tasks) {
+      db.collection('tasks').set(tasks).then(() => {
+        commit('setTasks', tasks)
+      })
+    },
+
+    getTasks({ commit }) {
+      db.collection('tasks').get().then(documents => {
+        commit('setTasks', documents)
+      })
+    },
+
+    addTask({ commit }, newTaskTitle) {
+      let newTask = {
+        id: Date.now(),
+        title: newTaskTitle,
+        done: false,
+      }
+
+      db.collection('tasks').add(newTask).then(() => {
+        commit('addTask', newTask)
+        commit('showSnackbar', 'Task created successfully.')
+      })
+    },
+
+    doneTask({ state, commit }, id) {
+      let task = state.tasks.filter(task => task.id === id)[0]
+      db.collection('tasks').doc({ id: id }).update({
+        done: !task.done
+      }).then(() => {
+        commit('doneTask', id)
+      })
+    },
+
+    confirmDeleteTask({ commit }, id) {
+      commit('confirmDeleteTask', id)
+    },
+
+    deleteTask({ commit }, id) {
+      db.collection('tasks').doc({ id: id }).delete().then(() => {
+        commit('deleteTask', id)
+        commit('showSnackbar', 'Task deleted successfully.')
+        commit('closeDialog')
+      })
+    },
+
+    editTask({ state, commit }, id) {
+      let task = state.tasks.filter(task => task.id === id)[0]
+      commit('editTask', {'id': id, 'title': task.title})
+    },
+
+    updateTask({ commit }, payload) {
+      db.collection('tasks').doc({ id: payload.id }).update({
+        title: payload.title
+      }).then(() => {
+        commit('updateTask', payload)
+        commit('closeDialog')
+        commit('showSnackbar', 'Task updated successfully.')
+      })
+    },
+
+    closeDialog({ commit }) {
+      commit('closeDialog')
+    },
+
+    closeSnackbar({ commit }) {
+      commit('closeSnackbar')
+    },
   },
+
+  getters: {
+    tasks: state => {
+      return state.tasks
+    },
+
+    taskCount: state => {
+      return state.tasks.length
+    },
+
+    snackbar: state => {
+      return state.snackbar
+    },
+
+    editItemId: state => {
+      return state.editItemId
+    },
+
+    dialogEdit: state => {
+      return state.dialogEdit
+    },
+
+    deleteItemId: state => {
+      return state.deleteItemId
+    },
+
+    dialogDelete: state => {
+      return state.dialogDelete
+    },
+  },
+
   modules: {
   }
 })

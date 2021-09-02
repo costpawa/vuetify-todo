@@ -56,10 +56,6 @@
       <v-app-bar-title>Vuetify Todo ☑️</v-app-bar-title>
 
       <v-spacer></v-spacer>
-
-      <v-btn icon>
-        <v-icon>mdi-magnify</v-icon>
-      </v-btn>
     </v-app-bar>
 
     <v-main>
@@ -80,5 +76,8 @@
         right: null,
       }
     },
+    created() {
+      this.$store.dispatch('getTasks')
+    }
   }
 </script>
